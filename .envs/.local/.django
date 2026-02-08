@@ -1,0 +1,19 @@
+# General
+# ------------------------------------------------------------------------------
+USE_DOCKER=yes
+IPYTHONDIR=/app/.ipython
+
+# Database
+DATABASE_URL=postgres://postgres:postgres@postgres:5432/transcription_app
+
+# MinIO / S3 Storage
+USE_S3=True
+AWS_ACCESS_KEY_ID=transcription_minio_user_7k2x
+AWS_SECRET_ACCESS_KEY=mN8pQ#xR2$vL9wT5kB3fH6jC4nY7sD1m
+AWS_STORAGE_BUCKET_NAME=transcription-audio
+AWS_S3_ENDPOINT_URL=http://minio:9000
+AWS_S3_USE_SSL=False
+
+# Voxtral Transcription Service
+VOXTRAL_BACKEND_URL=https://transcribe.simpliant-ds.eu
+VOXTRAL_API_KEY=7b7a7a1e5f008b121ab31afd09af77bf23f168e94486986f3cc7c62327bef153

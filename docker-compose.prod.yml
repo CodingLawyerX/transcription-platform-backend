@@ -1,0 +1,142 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: transcription_app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+  minio:
+    image: minio/minio:latest
+    container_name: transcription_minio
+    environment:
+      MINIO_ROOT_USER: transcription_minio_user_7k2x
+      MINIO_ROOT_PASSWORD: mN8pQ#xR2$$vL9wT5kB3fH6jC4nY7sD1m
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - default
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 transcription_minio_user_7k2x mN8pQ#xR2$$vL9wT5kB3fH6jC4nY7sD1m;
+      /usr/bin/mc mb myminio/transcription-audio --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/transcription-audio;
+      exit 0;
+      "
+    networks:
+      - default
+
+  django:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/transcription_app
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      HTTP_ROUTE: rest/
+      # Allow internal Docker network access from frontend
+      DJANGO_ALLOWED_HOSTS: backend.simpliant-ds.eu,localhost,127.0.0.1,transcription-platform-backendgit-django-1,172.21.0.6
+      # MinIO / S3 Storage
+      USE_S3: "True"
+      AWS_ACCESS_KEY_ID: transcription_minio_user_7k2x
+      AWS_SECRET_ACCESS_KEY: mN8pQ#xR2$$vL9wT5kB3fH6jC4nY7sD1m
+      AWS_STORAGE_BUCKET_NAME: transcription-audio
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_USE_SSL: "False"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    volumes:
+      - .:/app
+    command: >
+      sh -c "uv run python manage.py migrate &&
+             uv run python manage.py runserver 0.0.0.0:8112"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=transcription-platform-backendgit_default"
+      - "traefik.http.routers.transcription-backend.rule=Host(`backend.simpliant-ds.eu`)"
+      - "traefik.http.routers.transcription-backend.entrypoints=websecure"
+      - "traefik.http.routers.transcription-backend.tls=true"
+      - "traefik.http.routers.transcription-backend.tls.certresolver=myresolver"
+      - "traefik.http.services.transcription-backend.loadbalancer.server.port=8112"
+      - "traefik.http.routers.transcription-backend.middlewares=transcription-backend-security@docker"
+      - "traefik.http.middlewares.transcription-backend-security.headers.customrequestheaders.X-Api-Key=${TRAEFIK_API_KEY}"
+      - "traefik.http.middlewares.transcription-backend-security.headers.sslredirect=true"
+      - "traefik.http.middlewares.transcription-backend-security.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.transcription-backend-security.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.transcription-backend-security.headers.stspreload=true"
+      - "traefik.http.middlewares.transcription-backend-security.headers.forcestsheader=true"
+      - "traefik.http.middlewares.transcription-backend-security.headers.customframeoptionsvalue=SAMEORIGIN"
+    networks:
+      - default
+      - voxtral-backend_voxtral-network
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transcription_celery
+    command: uv run celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/transcription_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - default
+      - voxtral-backend_voxtral-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  voxtral-backend_voxtral-network:
+    external: true
