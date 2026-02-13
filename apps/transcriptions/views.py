@@ -1,6 +1,7 @@
 import requests
 import logging
 from datetime import datetime, timedelta
+from django.conf import settings
 from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -75,7 +76,8 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         
         # User-Einstellungen abrufen
         settings_obj, _ = TranscriptionSettings.objects.get_or_create(
-            user=request.user
+            user=request.user,
+            defaults={"backend_url": settings.VOXTRAL_BACKEND_URL},
         )
         
         # Transkriptions-Objekt erstellen
@@ -89,49 +91,79 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         try:
             # An externes Backend senden
             backend_url = settings_obj.backend_url.rstrip('/')
+            if "api.openai.com" in backend_url or "/v1/audio/transcriptions" in backend_url:
+                backend_url = settings.VOXTRAL_BACKEND_URL.rstrip('/')
+                settings_obj.backend_url = backend_url
+                settings_obj.save(update_fields=["backend_url"])
             api_key = settings_obj.api_key
             
             headers = {}
             if api_key:
                 headers['X-API-KEY'] = api_key
             
+            try:
+                audio_file.seek(0)
+            except Exception:
+                try:
+                    audio_file.file.seek(0)
+                except Exception:
+                    pass
+
             files = {'file': (audio_file.name, audio_file.file, audio_file.content_type)}
             data = {}
             if language and language != 'auto':
                 data['language'] = language
             
+            transcribe_url = backend_url
+            if not transcribe_url.endswith('/transcribe'):
+                transcribe_url = f'{transcribe_url}/transcribe'
             response = requests.post(
-                f'{backend_url}/transcribe',
+                transcribe_url,
                 headers=headers,
                 files=files,
                 data=data,
                 timeout=300  # 5 Minuten Timeout
             )
-            
-            response.raise_for_status()
-            result = response.json()
+            if not response.ok:
+                error_body = response.text[:1000]
+                raise requests.exceptions.HTTPError(
+                    f"{response.status_code} {response.reason}: {error_body}",
+                    response=response,
+                )
+
+            try:
+                result = response.json()
+            except ValueError:
+                raise requests.exceptions.RequestException(
+                    f"Invalid JSON response from transcription backend (status {response.status_code})"
+                )
             
             # Ergebnis speichern
-            transcription.text = result.get('text', '')
-            transcription.model_used = result.get('model', '')
+            transcription.transcribed_text = result.get('text', '')
+            transcription.model_name = result.get('model', '')
             transcription.language = result.get('language', language)
             transcription.status = 'completed'
+            transcription.completed_at = timezone.now()
             transcription.save()
             
             return Response({
                 'id': transcription.id,
-                'text': transcription.text,
+                'text': transcription.transcribed_text,
                 'language': transcription.language,
-                'model': transcription.model_used,
+                'model': transcription.model_name,
                 'status': 'ok'
             }, status=status.HTTP_200_OK)
             
         except requests.exceptions.RequestException as e:
             transcription.status = 'failed'
+            error_detail = str(e)
+            if getattr(e, "response", None) is not None:
+                error_detail = f"{error_detail} | {e.response.text[:1000]}"
+            transcription.error_message = error_detail
             transcription.save()
             
             return Response({
-                'error': str(e),
+                'error': error_detail,
                 'detail': 'Transkription fehlgeschlagen'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -143,25 +175,38 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         GET /rest/api/v1/transcribe/transcriptions/health/
         """
         settings_obj, _ = TranscriptionSettings.objects.get_or_create(
-            user=request.user
+            user=request.user,
+            defaults={"backend_url": settings.VOXTRAL_BACKEND_URL},
         )
         
         try:
             backend_url = settings_obj.backend_url.rstrip('/')
+            if "api.openai.com" in backend_url or "/v1/audio/transcriptions" in backend_url:
+                backend_url = settings.VOXTRAL_BACKEND_URL.rstrip('/')
+                settings_obj.backend_url = backend_url
+                settings_obj.save(update_fields=["backend_url"])
             api_key = settings_obj.api_key
             
             headers = {}
             if api_key:
                 headers['X-API-KEY'] = api_key
             
+            health_url = backend_url
+            if not health_url.endswith('/health'):
+                health_url = f'{health_url}/health'
             response = requests.get(
-                f'{backend_url}/health',
+                health_url,
                 headers=headers,
                 timeout=10
             )
             
             response.raise_for_status()
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                raise requests.exceptions.RequestException(
+                    f"Invalid JSON response from health endpoint (status {response.status_code})"
+                )
             
             return Response({
                 'status': data.get('status', 'ok'),
@@ -324,7 +369,8 @@ class TranscriptionSettingsViewSet(viewsets.ModelViewSet):
     def get_object(self):
         """Einstellungen für aktuellen User abrufen oder erstellen"""
         obj, _ = TranscriptionSettings.objects.get_or_create(
-            user=self.request.user
+            user=self.request.user,
+            defaults={"backend_url": settings.VOXTRAL_BACKEND_URL},
         )
         return obj
 

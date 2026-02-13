@@ -2,10 +2,20 @@
 
 Django-basiertes Backend für die Simpliant App mit Benutzerauthentifizierung, REST-API und Workflow- bzw. Eintragsverwaltung.
 
+## Wichtige Pfade & Deploy-Kontext (Server)
+
+- Backend-Repo: `/srv/transcription-platform-backend.git`
+- Frontend-Repo: `/srv/transcription-platform-frontend`
+- Backend Docker Compose (Prod): `/srv/transcription-platform-backend.git/docker-compose.prod.yml`
+- Frontend Docker Compose (Prod): `/srv/transcription-platform-frontend/docker-compose.prod.yml`
+- Domains: Frontend `https://app.simpliant-ds.eu`, Backend `https://backend.simpliant-ds.eu`
+- API-Base (Prod): `https://backend.simpliant-ds.eu/rest/api/v1`
+- Voxtral: `https://transcribe.simpliant-ds.eu`
+
 ## Projektstruktur (nach Refactoring)
 
 ```
-backend/
+transcription-platform-backend.git/
 ├── apps/                           # Django-Apps
 │   ├── users/                      # Benutzerverwaltung (Custom User Model)
 │   │   ├── migrations/
@@ -40,7 +50,8 @@ backend/
 ├── locale/                         # Internationalisierung
 ├── tests/                          # Projektweite Tests
 ├── utility/                        # Hilfsskripte (Installation, etc.)
-├── docker-compose.yml              # Multi‑Service‑Setup (Ports: 5439, 6383, 9000, 9001, 8120)
+├── docker-compose.yml              # Local Dev (Ports: 5439, 6383, 9000, 9001, 8120 -> 8112)
+├── docker-compose.prod.yml         # Production (Traefik, Gunicorn, 8112 intern)
 ├── Dockerfile
 ├── pyproject.toml                  # Abhängigkeiten & Projektmetadaten
 ├── uv.lock                         # Lock‑Datei für uv
@@ -155,17 +166,17 @@ uv run python manage.py makemigrations
 uv run python manage.py migrate
 
 # Entwicklungsserver starten (Port 8120)
-uv run python manage.py runserver 8120
+uv run python manage.py runserver 0.0.0.0:8112
 
 # Tests ausführen
 uv run python -m pytest
 
 # Docker Compose starten (PostgreSQL, Redis, MinIO, Django)
-docker-compose up -d postgres redis minio
-docker-compose up -d django
+docker compose -f docker-compose.yml up -d postgres redis minio
+docker compose -f docker-compose.yml up -d django
 
 # MinIO Bucket-Status prüfen
-docker-compose exec minio /usr/bin/mc ls myminio/transcription-audio
+docker compose -f docker-compose.yml exec minio /usr/bin/mc ls myminio/transcription-audio
 ```
 
 ### Port-Konflikte
@@ -177,7 +188,7 @@ Wenn die Standard-Ports (5439, 6383, 9000, 9001, 8120) belegt sind, passe sie in
 - Redis: 6383
 - MinIO API: 9000
 - MinIO Console: 9001
-- Django Backend: 8120
+- Django Backend: 8120 (Host) → 8112 (Container)
 - Frontend: 3005 (optional)
 
 ## Entwicklungsumgebung einrichten
@@ -193,7 +204,7 @@ Wenn die Standard-Ports (5439, 6383, 9000, 9001, 8120) belegt sind, passe sie in
 1. Repository klonen:
    ```bash
    git clone <repository-url>
-   cd transcription-platform/backend
+   cd /srv/transcription-platform-backend.git
    ```
 
 2. Virtuelle Umgebung erstellen und Abhängigkeiten installieren:
@@ -202,11 +213,8 @@ Wenn die Standard-Ports (5439, 6383, 9000, 9001, 8120) belegt sind, passe sie in
    ```
 
 3. Environment‑Variablen setzen:
-   ```bash
-   cp .envs/.local/.django.example .envs/.local/.django
-   cp .envs/.local/.postgres.example .envs/.local/.postgres
-   # Werte anpassen
-   ```
+   - Für Docker/Production: `.env` im Repo-Root verwenden.
+   - Für lokale Entwicklung ohne Docker: Werte in `.env` setzen und `DJANGO_READ_DOT_ENV_FILE=True` nutzen.
 
 4. Datenbank migrieren:
    ```bash
@@ -220,23 +228,34 @@ Wenn die Standard-Ports (5439, 6383, 9000, 9001, 8120) belegt sind, passe sie in
 
 ### Mit Docker Compose (empfohlen)
 
-1. Im Projekt‑Root (`backend/`) ausführen:
+1. Im Projekt‑Root ausführen:
    ```bash
-   docker-compose up --build
+   cd /srv/transcription-platform-backend.git
+   docker compose -f docker-compose.yml up -d --build
    ```
 
    Dies startet:
     - PostgreSQL auf Port 5439
     - Redis auf Port 6383
     - MinIO Object Storage auf Port 9000 (API) und 9001 (Console UI)
-    - Django‑Backend auf Port 8120
-    - Frontend (separates Repo) auf Port 3005 (falls aktiviert)
+    - Django‑Backend auf Port 8120 (intern 8112)
 
 2. Migrationen werden automatisch ausgeführt.
 
 3. Das Backend ist unter `http://localhost:8120` erreichbar.
-   - MinIO Console: `http://localhost:9001` (Login: transcription_minio_user_7k2x / mN8pQ#xR2$vL9wT5kB3fH6jC4nY7sD1m)
+   - MinIO Console: `http://localhost:9001` (Login siehe `.env`)
    - MinIO API: `http://localhost:9000`
+
+### Production (Traefik / backend.simpliant-ds.eu)
+
+```bash
+cd /srv/transcription-platform-backend.git
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Hinweise:
+- `.env` im Repo-Root enthält die Produktionswerte (DB, Redis, MinIO, SMTP, Secrets).
+- Das Backend läuft intern auf Port 8112; Traefik routet `https://backend.simpliant-ds.eu`.
 
 ## API‑Endpunkte
 
@@ -256,15 +275,15 @@ Die REST‑API ist unter `/rest/api/v1/` erreichbar. Die browsable API ist aktiv
 
 ### Transkriptionen
 
-- `GET /rest/api/v1/transcriptions/` – Liste aller Transkriptionen (authentifiziert)
-- `POST /rest/api/v1/transcriptions/` – Neue Transkription erstellen
-- `GET /rest/api/v1/transcriptions/{id}/` – Transkription abrufen
-- `PUT /rest/api/v1/transcriptions/{id}/` – Transkription aktualisieren
-- `DELETE /rest/api/v1/transcriptions/{id}/` – Transkription löschen
-- `POST /rest/api/v1/transcriptions/transcribe/` – Audio-Datei direkt transkribieren (multipart/form-data)
-- `GET /rest/api/v1/transcriptions/health/` – Health-Check des Transkriptions-Backends (Voxtral)
-- `GET /rest/api/v1/transcriptions/stats/` – Statistik-Daten für den aktuellen Benutzer
-- `GET /rest/api/v1/transcriptions/timeline/` – Zeitreihendaten für Transkriptionen (letzte 30 Tage, optional `?days=...`)
+- `GET /rest/api/v1/transcribe/transcriptions/` – Liste aller Transkriptionen (authentifiziert)
+- `POST /rest/api/v1/transcribe/transcriptions/` – Neue Transkription erstellen
+- `GET /rest/api/v1/transcribe/transcriptions/{id}/` – Transkription abrufen
+- `PUT /rest/api/v1/transcribe/transcriptions/{id}/` – Transkription aktualisieren
+- `DELETE /rest/api/v1/transcribe/transcriptions/{id}/` – Transkription löschen
+- `POST /rest/api/v1/transcribe/transcriptions/transcribe/` – Audio-Datei direkt transkribieren (multipart/form-data)
+- `GET /rest/api/v1/transcribe/transcriptions/health/` – Health-Check des Transkriptions-Backends (Voxtral)
+- `GET /rest/api/v1/transcribe/transcriptions/stats/` – Statistik-Daten für den aktuellen Benutzer
+- `GET /rest/api/v1/transcribe/transcriptions/timeline/` – Zeitreihendaten für Transkriptionen (letzte 30 Tage, optional `?days=...`)
 
 ### Infrastruktur
 
@@ -282,7 +301,8 @@ Das Projekt verwendet **drf‑spectacular** zur automatischen Generierung von Op
 
 #### Zugriff
 
-Die Swagger‑UI ist unter `http://localhost:8120/api/docs/` erreichbar. Sie listet alle API‑Endpunkte mit Beschreibungen, Parametern und Beispielen auf.
+Die Swagger‑UI ist unter `http://localhost:8120/api/docs/` (lokal) oder
+`https://backend.simpliant-ds.eu/api/docs/` (prod) erreichbar. Sie listet alle API‑Endpunkte mit Beschreibungen, Parametern und Beispielen auf.
 
 #### Konfiguration
 
@@ -335,7 +355,7 @@ Erweitert `AbstractUser` mit zusätzlichem Feld `name`.
 
 ### Environment‑Variablen
 
-Wichtige Variablen (siehe `.envs/.local/.django`):
+Wichtige Variablen (siehe `.env` im Repo-Root):
 
 - `DATABASE_URL` – PostgreSQL‑Connection‑String
 - `REDIS_URL` – Redis‑Connection‑String
@@ -370,10 +390,10 @@ Transkriptionen werden asynchron mit Voxtral API verarbeitet:
 
 ```bash
 # Celery läuft automatisch
-docker-compose ps celery
+docker compose -f docker-compose.yml ps celery
 
 # Logs anschauen
-docker-compose logs -f celery
+docker compose -f docker-compose.yml logs -f celery
 ```
 
 #### Voxtral Integration
@@ -386,7 +406,7 @@ docker-compose logs -f celery
 
 #### Flow
 
-1. POST /transcriptions/ → Status: `pending`
+1. POST /rest/api/v1/transcribe/transcriptions/ → Status: `pending`
 2. Celery Task startet
 3. Status: `processing`
 4. Voxtral API transkribiert (kann Minuten dauern)
@@ -433,9 +453,9 @@ uv run python -m pytest -m "not slow"
 
 ### Produktions‑Build mit Docker
 
-1. `docker-compose -f docker-compose.prod.yml up --build`
+1. `docker compose -f docker-compose.prod.yml up -d --build`
 
-2. Environment‑Variablen für Produktion setzen (`.envs/.production/`).
+2. Environment‑Variablen für Produktion setzen (`.env` im Repo-Root).
 
 ### Ohne Docker
 
@@ -447,7 +467,7 @@ uv run python -m pytest -m "not slow"
 ## Wichtige Hinweise
 
 - **Email‑Verifizierung** ist auf `mandatory` gesetzt (ACCOUNT_EMAIL_VERIFICATION). In der Entwicklung kann sie über `console`‑Backend getestet werden.
-- **CORS** ist für `http://localhost:3000` und `http://localhost:3004` konfiguriert.
+- **CORS** ist für `https://app.simpliant-ds.eu` sowie lokale Frontends konfiguriert (siehe `CORS_ALLOWED_HOSTS`).
 - **Redis** – Caching, Session‑Storage & Celery Message Broker
 - **Celery** – Asynchrone Task‑Verarbeitung
 - **Voxtral** – Externes Transkriptions-Backend (voxtral-mini-latest)

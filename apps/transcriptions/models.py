@@ -103,8 +103,8 @@ class TranscriptionSettings(models.Model):
     
     # External Service Configuration
     backend_url = models.URLField(
-        default='https://api.openai.com/v1/audio/transcriptions',
-        help_text="Transcription service API endpoint"
+        default=settings.VOXTRAL_BACKEND_URL,
+        help_text="Base URL of the transcription service"
     )
     api_key = models.CharField(
         max_length=255,

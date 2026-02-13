@@ -104,12 +104,22 @@ class CustomLoginSerializer(DefaultLoginSerializer):
         if email and not username:
             # Try to find user by email
             try:
-                user = User.objects.get(email=email)
-                attrs['username'] = user.username
+                user = User.objects.get(email__iexact=email)
+            except User.MultipleObjectsReturned:
+                user = (
+                    User.objects.filter(email__iexact=email)
+                    .order_by('-last_login', '-date_joined', '-id')
+                    .first()
+                )
+                if not user:
+                    raise serializers.ValidationError(
+                        "Unable to log in with provided credentials."
+                    )
             except User.DoesNotExist:
                 raise serializers.ValidationError(
                     "Unable to log in with provided credentials."
                 )
+            attrs['username'] = user.username
         # Let the parent validation handle the rest
         return super().validate(attrs)
 
@@ -185,24 +195,27 @@ class CustomPasswordResetSerializer(DefaultPasswordResetSerializer):
 
 
 class CustomPasswordResetConfirmSerializer(DefaultPasswordResetConfirmSerializer):
-    """Accept both allauth base36 and Django uidb64 formats."""
+    """Accept both Django uidb64 and allauth base36 formats.
+
+    Prefer Django uidb64 because our reset emails use uidb64 in the URL.
+    """
 
     def validate(self, attrs):
         uid_value = attrs.get("uid", "")
         user = None
 
-        # Try allauth base36 UID first.
+        # Try Django's uidb64 first (matches our email reset links).
         try:
-            uid = force_str(url_str_to_user_pk(uid_value))
+            uid = force_str(urlsafe_base64_decode(uid_value))
             user = User._default_manager.get(pk=uid)
-            token_generator = allauth_default_token_generator
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
-            # Fall back to Django's uidb64.
+            token_generator = django_default_token_generator
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            # Fall back to allauth base36 UID.
             try:
-                uid = force_str(urlsafe_base64_decode(uid_value))
+                uid = force_str(url_str_to_user_pk(uid_value))
                 user = User._default_manager.get(pk=uid)
-                token_generator = django_default_token_generator
-            except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+                token_generator = allauth_default_token_generator
+            except (TypeError, ValueError, OverflowError, User.DoesNotExist, DjangoValidationError):
                 raise serializers.ValidationError({"uid": ["Invalid value"]})
 
         self.user = user

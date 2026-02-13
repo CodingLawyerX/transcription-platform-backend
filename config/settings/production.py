@@ -78,11 +78,20 @@ X_FRAME_OPTIONS = "DENY"
 
 
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
-AWS_ACCESS_KEY_ID = env("DJANGO_AWS_ACCESS_KEY_ID")
+AWS_ACCESS_KEY_ID = env(
+    "DJANGO_AWS_ACCESS_KEY_ID",
+    default=env("AWS_ACCESS_KEY_ID", default=""),
+)
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
-AWS_SECRET_ACCESS_KEY = env("DJANGO_AWS_SECRET_ACCESS_KEY")
+AWS_SECRET_ACCESS_KEY = env(
+    "DJANGO_AWS_SECRET_ACCESS_KEY",
+    default=env("AWS_SECRET_ACCESS_KEY", default=""),
+)
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
-AWS_STORAGE_BUCKET_NAME = env("DJANGO_AWS_STORAGE_BUCKET_NAME")
+AWS_STORAGE_BUCKET_NAME = env(
+    "DJANGO_AWS_STORAGE_BUCKET_NAME",
+    default=env("AWS_STORAGE_BUCKET_NAME", default=""),
+)
 # https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html#settings
 AWS_QUERYSTRING_AUTH = False
 # DO NOT change these unless you know what you're doing.
@@ -128,10 +137,16 @@ STATIC_URL = f"https://{aws_s3_domain}/static/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#default-from-email
 DEFAULT_FROM_EMAIL = env(
     "DJANGO_DEFAULT_FROM_EMAIL",
-    default="Simpliant App <noreply@simpliant-ds.eu>",
+    default=env(
+        "DEFAULT_FROM_EMAIL",
+        default="Simpliant App <noreply@simpliant-ds.eu>",
+    ),
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#server-email
-SERVER_EMAIL = env("DJANGO_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+SERVER_EMAIL = env(
+    "DJANGO_SERVER_EMAIL",
+    default=env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL),
+)
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-subject-prefix
 EMAIL_SUBJECT_PREFIX = env(
     "DJANGO_EMAIL_SUBJECT_PREFIX",
@@ -142,21 +157,27 @@ ACCOUNT_EMAIL_SUBJECT_PREFIX = EMAIL_SUBJECT_PREFIX
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL regex.
-ADMIN_URL = env("DJANGO_ADMIN_URL")
+ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")
 
 # Anymail
 # ------------------------------------------------------------------------------
 # https://anymail.readthedocs.io/en/stable/installation/#installing-anymail
-INSTALLED_APPS += ["anymail"]
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
-# https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
-# https://anymail.readthedocs.io/en/stable/esps/mailgun/
-EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
-ANYMAIL = {
-    "MAILGUN_API_KEY": env("MAILGUN_API_KEY"),
-    "MAILGUN_SENDER_DOMAIN": env("MAILGUN_DOMAIN"),
-    "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
-}
+mailgun_api_key = env("MAILGUN_API_KEY", default="")
+mailgun_domain = env("MAILGUN_DOMAIN", default="")
+if mailgun_api_key and mailgun_domain:
+    INSTALLED_APPS += ["anymail"]
+    # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
+    # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
+    # https://anymail.readthedocs.io/en/stable/esps/mailgun/
+    EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+    ANYMAIL = {
+        "MAILGUN_API_KEY": mailgun_api_key,
+        "MAILGUN_SENDER_DOMAIN": mailgun_domain,
+        "MAILGUN_API_URL": env(
+            "MAILGUN_API_URL",
+            default="https://api.mailgun.net/v3",
+        ),
+    }
 
 # Collectfasta
 # ------------------------------------------------------------------------------

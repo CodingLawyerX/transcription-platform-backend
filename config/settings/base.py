@@ -470,8 +470,16 @@ ACCOUNT_PASSWORD_RESET_CONFIRM = PASSWORD_RESET_CONFIRM_URL
 TRAEFIK_API_KEY = env("TRAEFIK_API_KEY", default="")
 TRAEFIK_API_HEADER = env("TRAEFIK_API_HEADER", default="X-Api-Key")
 
-CAH = env("CORS_ALLOWED_HOSTS", default="http://localhost:3000,http://localhost:3003")
-CORS_ALLOWED_ORIGINS = CAH.split(",")
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+cors_origins_env = env("CORS_ALLOWED_ORIGINS", default="")
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = _split_csv(cors_origins_env)
+else:
+    CAH = env("CORS_ALLOWED_HOSTS", default="http://localhost:3000,http://localhost:3003")
+    CORS_ALLOWED_ORIGINS = _split_csv(CAH)
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + ["Set-Cookie"]
 

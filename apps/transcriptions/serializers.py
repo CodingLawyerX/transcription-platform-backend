@@ -59,10 +59,14 @@ class TranscriptionCreateSerializer(serializers.Serializer):
         allowed_types = [
             'audio/mpeg',
             'audio/mp4',
+            'audio/m4a',
+            'audio/x-m4a',
             'audio/wav',
             'audio/flac',
             'audio/ogg',
-            'audio/webm'
+            'audio/webm',
+            'audio/aac',
+            'audio/x-aac'
         ]
         
         if value.content_type not in allowed_types:

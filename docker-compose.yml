@@ -76,7 +76,7 @@ services:
       DEFAULT_FROM_EMAIL: mailapi@simpliant-ds.eu
       SERVER_EMAIL: mailapi@simpliant-ds.eu
       HTTP_ROUTE: rest/
-      CORS_ALLOWED_HOSTS: https://app.simpliant-ds.eu,http://transcription-frontend:3000,http://localhost:3004,http://localhost:3000,http://frontend:3000
+      CORS_ALLOWED_ORIGINS: https://app.simpliant-ds.eu,http://transcription-frontend:3000,http://localhost:3004,http://localhost:3000,http://frontend:3000
       # MinIO / S3 Storage
       USE_S3: "True"
       AWS_ACCESS_KEY_ID: transcription_minio_user_7k2x
@@ -94,7 +94,8 @@ services:
     volumes:
       - .:/app
     command: >
-      sh -c "uv run python manage.py migrate &&
+      sh -c "uv run python scripts/wait_for_db.py &&
+             uv run python manage.py migrate &&
              uv run python manage.py runserver 0.0.0.0:8112"
 
   celery:
