@@ -3,7 +3,7 @@ from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.template import loader
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import (
@@ -25,8 +25,11 @@ from django.contrib.auth.tokens import default_token_generator as django_default
 from allauth.account.forms import default_token_generator as allauth_default_token_generator
 from allauth.account.utils import url_str_to_user_pk
 from smtplib import SMTPException, SMTPRecipientsRefused
+import logging
+import requests
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class FrontendPasswordResetForm(PasswordResetForm):
@@ -124,11 +127,44 @@ class CustomLoginSerializer(DefaultLoginSerializer):
         return super().validate(attrs)
 
 
+import altcha
+
+
 class CustomRegisterSerializer(RegisterSerializer):
     """Registration serializer compatible with dj-rest-auth/Next.js flow."""
 
     username = serializers.CharField(required=False, allow_blank=True)
     name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    altcha = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # ALTCHA verification
+        altcha_payload = self.initial_data.get("altcha") or attrs.get("altcha")
+        if not altcha_payload:
+            raise serializers.ValidationError(
+                {"altcha": ["Bitte lösen Sie das CAPTCHA."]}
+            )
+
+        hmac_key = getattr(settings, "ALTCHA_HMAC_KEY", "")
+        if not hmac_key:
+            raise serializers.ValidationError(
+                {"altcha": ["CAPTCHA-Konfiguration fehlt. Bitte Support kontaktieren."]}
+            )
+
+        try:
+            ok, _ = altcha.verify_solution(altcha_payload, hmac_key, check_expires=True)
+            if not ok:
+                raise serializers.ValidationError(
+                    {"altcha": ["CAPTCHA-Verifikation fehlgeschlagen. Bitte erneut versuchen."]}
+                )
+        except Exception:
+            raise serializers.ValidationError(
+                {"altcha": ["CAPTCHA-Verifikation fehlgeschlagen."]}
+            )
+
+        return attrs
 
     def get_cleaned_data(self):
         data = super().get_cleaned_data()
@@ -146,6 +182,34 @@ class CustomRegisterSerializer(RegisterSerializer):
         user = super().save(request)
         user.name = self.cleaned_data.get("name", "")
         user.save(update_fields=["name"])
+
+        notify_emails = getattr(settings, "ADMIN_NEW_USER_EMAILS", [])
+        if notify_emails:
+            try:
+                name = user.name or ""
+                user_email = user.email or ""
+                ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() if request else ""
+                if not ip and request:
+                    ip = request.META.get("REMOTE_ADDR", "")
+                user_agent = request.META.get("HTTP_USER_AGENT", "") if request else ""
+                subject = "Neuer Simpliant Transcribe Nutzer registriert"
+                body = (
+                    "Eine neue Registrierung ist eingegangen:\n\n"
+                    f"Email: {user_email}\n"
+                    f"Name: {name}\n"
+                    f"IP: {ip}\n"
+                    f"User-Agent: {user_agent}\n"
+                )
+                send_mail(
+                    subject,
+                    body,
+                    getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                    notify_emails,
+                    fail_silently=False,
+                )
+            except Exception:
+                logger.exception("Failed to send new user notification email.")
+
         return user
 
 

@@ -264,9 +264,25 @@ Die REST‑API ist unter `/rest/api/v1/` erreichbar. Die browsable API ist aktiv
 ### Authentifizierung
 
 - `POST /rest/api/v1/auth/login/` – Token‑Login
-- `POST /rest/api/v1/auth/registration/` – Benutzerregistrierung
+- `POST /rest/api/v1/auth/registration/` – Benutzerregistrierung (mit ALTCHA CAPTCHA)
 - `POST /rest/api/v1/auth/logout/` – Logout
 - `GET /rest/api/v1/auth/user/` – Aktueller Benutzer
+
+### CAPTCHA (ALTCHA)
+
+Das Projekt verwendet **ALTCHA** – ein self-hosted Proof-of-Work CAPTCHA-System.
+
+- `GET /rest/api/v1/altcha/challenge` – Liefert eine Challenge für das ALTCHA Widget
+
+**Wie es funktioniert:**
+1. Das Frontend lädt das ALTCHA Widget und ruft den Challenge-Endpoint ab
+2. Das Widget führt Proof-of-Work-Berechnungen durch (SHA-256)
+3. Bei erfolgreicher Berechnung wird ein Payload erzeugt
+4. Dieser Payload wird beim Registrieren (`POST /auth/registration/`) als `altcha`-Feld mitgesendet
+5. Das Backend verifiziert den Payload mit dem `ALTCHA_HMAC_KEY`
+
+**Konfiguration:**
+- `ALTCHA_HMAC_KEY` in `.env` setzen (64 Zeichen Hex, generieren mit: `python -c "import secrets; print(secrets.token_hex(32))"`)
 
 ### Benutzer
 

@@ -1,3 +1,4 @@
+import altcha
 from django.conf import settings
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.views import PasswordResetConfirmView
@@ -184,7 +185,8 @@ class ConfirmEmailRedirectView(View):
                     "https://app.simpliant-ds.eu/login",
                 )
                 return redirect(redirect_url)
-
+        
+        
         confirmation.confirm(request)
 
         if request.user.is_authenticated:
@@ -200,3 +202,39 @@ class ConfirmEmailRedirectView(View):
                 "https://app.simpliant-ds.eu/login",
             )
         return redirect(redirect_url)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def altcha_challenge(request):
+    """Generate ALTCHA challenge for Proof-of-Work CAPTCHA.
+    
+    Returns a challenge that the client must solve to prove they are not a bot.
+    The challenge uses SHA-256 and requires computational work to solve.
+    """
+    hmac_key = getattr(settings, "ALTCHA_HMAC_KEY", "")
+    if not hmac_key:
+        return Response(
+            {"error": "CAPTCHA not configured"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    
+    try:
+        challenge = altcha.create_challenge(
+            altcha.ChallengeOptions(
+                hmac_key=hmac_key,
+                max_number=50000,
+            )
+        )
+        return Response({
+            "algorithm": challenge.algorithm,
+            "challenge": challenge.challenge,
+            "maxnumber": challenge.max_number,
+            "salt": challenge.salt,
+            "signature": challenge.signature,
+        })
+    except Exception as e:
+        return Response(
+            {"error": "Failed to generate challenge"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

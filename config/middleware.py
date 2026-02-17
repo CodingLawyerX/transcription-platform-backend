@@ -15,6 +15,10 @@ class TraefikApiKeyMiddleware:
         if request.path.startswith("/rest/api/v1/auth/"):
             return self.get_response(request)
         
+        # Skip API key check for CAPTCHA challenge endpoint
+        if request.path == "/rest/api/v1/altcha/challenge":
+            return self.get_response(request)
+        
         # Skip API key check for internal Docker network requests
         # (no X-Forwarded-* headers present means direct container-to-container communication)
         if not request.headers.get("X-Forwarded-Proto"):

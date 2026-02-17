@@ -6,6 +6,7 @@ from apps.users.api_views import (
     ConfirmEmailRedirectView,
     CustomRegisterView,
     FrontendPasswordResetConfirmView,
+    altcha_challenge,
     change_password,
     check_token,
     resend_verification_email,
@@ -14,6 +15,7 @@ from apps.users.api_views import (
 
 
 api_routes = [
+    path("altcha/challenge", altcha_challenge, name="altcha_challenge"),
     path("auth/", include("dj_rest_auth.urls")),
     path(
         "auth/registration/account-confirm-email/<str:key>/",

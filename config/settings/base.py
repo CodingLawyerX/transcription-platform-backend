@@ -473,6 +473,14 @@ TRAEFIK_API_HEADER = env("TRAEFIK_API_HEADER", default="X-Api-Key")
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
+# ALTCHA Configuration (self-hosted Proof-of-Work CAPTCHA)
+# Generate a secure HMAC key: python -c "import secrets; print(secrets.token_hex(32))"
+ALTCHA_HMAC_KEY = env("ALTCHA_HMAC_KEY", default="")
+
+ADMIN_NEW_USER_EMAILS = _split_csv(
+    env("ADMIN_NEW_USER_EMAILS", default="steffen.gross@simpliant.eu")
+)
+
 
 cors_origins_env = env("CORS_ALLOWED_ORIGINS", default="")
 if cors_origins_env:
