@@ -417,6 +417,8 @@ ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = env(
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+# Email confirmation link expires after 2 days (48 hours)
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 2
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "apps.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
