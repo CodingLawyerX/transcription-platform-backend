@@ -1,11 +1,17 @@
-Hello,
+Guten Tag,
 
-Thanks for signing up for {{ current_site.name }}.
+vielen Dank für Ihre Registrierung bei Simpliant Transcribe.
 
-Please confirm your email address by clicking the link below:
+Um Ihr Konto zu aktivieren, bestätigen Sie bitte Ihre E-Mail-Adresse über den folgenden Link:
+
+👉 E-Mail-Adresse bestätigen:
 {{ activate_url }}
 
-If you did not create an account, you can safely ignore this email.
+Dieser Link ist aus Sicherheitsgründen nur 48 Stunden gültig.
 
-Best regards,
-The {{ current_site.name }} team
+Falls Sie sich nicht bei Simpliant Transcribe registriert haben, können Sie diese E-Mail ignorieren – es wurde kein Konto aktiviert.
+
+Bei Fragen stehen wir Ihnen gerne unter support@simpliant.com zur Verfügung.
+
+Mit freundlichen Grüßen
+Simpliant Team

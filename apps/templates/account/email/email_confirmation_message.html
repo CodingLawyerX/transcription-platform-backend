@@ -1,11 +1,19 @@
 <!doctype html>
 <html>
-  <body style="font-family: Arial, sans-serif; color: #111;">
-    <p>Hello,</p>
-    <p>Thanks for signing up for {{ current_site.name }}.</p>
-    <p>Please confirm your email address by clicking the link below:</p>
-    <p><a href="{{ activate_url }}">Confirm email address</a></p>
-    <p>If you did not create an account, you can safely ignore this email.</p>
-    <p>Best regards,<br>The {{ current_site.name }} team</p>
+  <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+    <p>Guten Tag,</p>
+    <p>vielen Dank für Ihre Registrierung bei Simpliant Transcribe.</p>
+    <p>Um Ihr Konto zu aktivieren, bestätigen Sie bitte Ihre E-Mail-Adresse über den folgenden Link:</p>
+    <p style="margin: 20px 0;">
+      <a href="{{ activate_url }}" style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">👉 E-Mail-Adresse bestätigen</a>
+    </p>
+    <p style="font-size: 0.9em; color: #666;">
+      Dieser Link ist aus Sicherheitsgründen nur 48 Stunden gültig.
+    </p>
+    <p style="font-size: 0.9em; color: #666;">
+      Falls Sie sich nicht bei Simpliant Transcribe registriert haben, können Sie diese E-Mail ignorieren – es wurde kein Konto aktiviert.
+    </p>
+    <p>Bei Fragen stehen wir Ihnen gerne unter <a href="mailto:support@simpliant.com">support@simpliant.com</a> zur Verfügung.</p>
+    <p>Mit freundlichen Grüßen<br><strong>Simpliant Team</strong></p>
   </body>
 </html>
